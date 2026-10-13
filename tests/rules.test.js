@@ -89,10 +89,8 @@
     eq(def('doctor').disabled(P(v)), '');
   });
 
-  test('Doctor self-save follows the setting', () => {
+  test('Doctor can always pick themselves, even with an old saved "no self-save" setting', () => {
     setup(BASE, { doctorSelf: false });
-    eq(def('doctor').disabled(P(S('doctor'))), 'No self-save');
-    setup(BASE, { doctorSelf: true });
     eq(def('doctor').disabled(P(S('doctor'))), '');
   });
 
@@ -480,15 +478,6 @@
     ok(roleDesc('blackmailer', 'mafia').includes('Mafia'));
     ok(roleDesc('doctor').includes('may save yourself'));
     ok(roleDesc('asstDoctor').includes('may save yourself'));
-    state.settings.doctorSelf = false;
-    ok(roleDesc('doctor').includes('cannot save yourself'));
-  });
-
-  test('Doctor self-save is on by default (including old saves without the setting)', () => {
-    eq(freshState().settings.doctorSelf, true);
-    setup(BASE);
-    delete state.settings.doctorSelf;
-    eq(def('doctor').disabled(P(S('doctor'))), '');
   });
 
   /* ----- Assistants ----- */

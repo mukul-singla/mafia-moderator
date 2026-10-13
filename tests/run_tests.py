@@ -337,7 +337,6 @@ def random_setup(rng):
         settings = {
             'revealOnDeath': rng.random() < 0.7,
             'night1Kill': rng.random() < 0.8,
-            'doctorSelf': rng.random() < 0.5,
             'vigBullets': rng.randint(1, 3),
             'blackmailerTeam': rng.choice(['random', 'mafia', 'town']),
         }

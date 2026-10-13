@@ -13,7 +13,7 @@ function freshState(prev) {
     screen: 'setup',
     numPlayers: prev ? prev.numPlayers : 8,
     counts: prev ? prev.counts : { godfather: 1, mafia: 1, doctor: 1, cop: 1 },
-    settings: prev ? prev.settings : { revealOnDeath: true, night1Kill: true, doctorSelf: true, vigBullets: 1, blackmailerTeam: 'random' },
+    settings: prev ? prev.settings : { revealOnDeath: true, night1Kill: true, vigBullets: 1, blackmailerTeam: 'random' },
     players: [],
     assignIndex: 0,
     revealed: false,
@@ -51,7 +51,6 @@ const blackmailerTeam = () => state.settings.blackmailerTeam || 'random';
 function roleDesc(key, team) {
   const role = ROLES[key];
   let d = role.desc;
-  if (role.selfSaveNote) d += state.settings.doctorSelf === false ? ' You cannot save yourself.' : ' You may save yourself.';
   if (role.flexTeam) {
     if (team === 'mafia') d += ' You are on the <b>Mafia</b> team: you also wake with the Mafia and help choose the kill.';
     else if (team === 'town') d += ' You are on the <b>Town</b> team: you win with the Town.';
@@ -294,7 +293,6 @@ function stepDef(key) {
       d.after = ['Doctor, close your eyes.'];
       d.disabled = p => {
         if (!h) return '';
-        if (p.seat === h.seat && state.settings.doctorSelf === false) return 'No self-save';
         const l = state.last.doctor;
         if (l && l.by === h.seat && l.target === p.seat && l.round === r - 1) return 'Saved last night';
         return '';
@@ -726,7 +724,6 @@ function viewSetup() {
       <h2>Rules</h2>
       <label class="toggle"><input type="checkbox" data-setting="revealOnDeath" ${st.revealOnDeath ? 'checked' : ''}> Reveal role when a player dies</label>
       <label class="toggle"><input type="checkbox" data-setting="night1Kill" ${st.night1Kill ? 'checked' : ''}> Mafia may kill on Night 1</label>
-      <label class="toggle"><input type="checkbox" data-setting="doctorSelf" ${st.doctorSelf !== false ? 'checked' : ''}> Doctor may save themselves</label>
       <label class="toggle">Blackmailer team
         <select data-setting="blackmailerTeam" data-kind="text">${[['random', 'Random'], ['mafia', 'Mafia'], ['town', 'Town']].map(([v, l]) => `<option value="${v}" ${blackmailerTeam() === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </label>

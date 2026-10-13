@@ -19,13 +19,11 @@ const ROLES = {
   },
   doctor: {
     name: 'Doctor', team: 'town', icon: '🩺', max: 1,
-    desc: 'Each night, choose a player to save from death. You cannot save the same player two nights in a row.',
-    selfSaveNote: true,
+    desc: 'Each night, choose a player to save from death — you may save yourself. You cannot save the same player two nights in a row.',
   },
   asstDoctor: {
     name: 'Assistant Doctor', team: 'town', icon: '💉', max: 1, requires: 'doctor',
-    desc: 'You have no power while the Doctor lives. If the Doctor dies, you become the new Doctor.',
-    selfSaveNote: true,
+    desc: 'You have no power while the Doctor lives. If the Doctor dies, you become the new Doctor (and may save yourself).',
   },
   cop: {
     name: 'Cop', team: 'town', icon: '🕵️', max: 1,
