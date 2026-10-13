@@ -410,6 +410,87 @@
     eq(def('cop').warn.length, 0);
   });
 
+  /* ----- Blackmailer team ----- */
+  const setBlackmailerTeam = team => { state.players.find(p => p.role === 'blackmailer').team = team; };
+
+  test('Town Blackmailer: Cop sees not Mafia, not in Mafia wake list', () => {
+    setup([...BASE, 'blackmailer']);
+    setBlackmailerTeam('town');
+    state.night.actions = { cop: S('blackmailer') };
+    ok(def('cop').result.includes('result good'));
+    ok(!def('mafiaWake').notes.join().includes('Blackmailer'));
+    ok(def('blackmail').notes.join().includes('Town'));
+  });
+
+  test('Mafia Blackmailer: Cop sees Mafia, in Mafia wake list', () => {
+    setup([...BASE, 'blackmailer']);
+    setBlackmailerTeam('mafia');
+    state.night.actions = { cop: S('blackmailer') };
+    ok(def('cop').result.includes('result bad'));
+    ok(def('mafiaWake').notes.join().includes('Blackmailer'));
+  });
+
+  test('Town Blackmailer alive does not block a Town win', () => {
+    setup(['mafia', 'blackmailer', 'villager', 'villager', 'villager']);
+    setBlackmailerTeam('town');
+    night({});
+    lynch(S('mafia'));
+    eq(state.winner, 'town');
+  });
+
+  test('Mafia Blackmailer alive blocks a Town win', () => {
+    setup(['mafia', 'blackmailer', 'villager', 'villager', 'villager', 'villager']);
+    setBlackmailerTeam('mafia');
+    night({});
+    lynch(S('mafia'));
+    eq(state.winner, null);
+  });
+
+  test('Blackmailer team setting is applied at role handout (random gives both)', () => {
+    const teams = new Set();
+    for (const setting of ['mafia', 'town']) {
+      state = freshState();
+      state.counts = { mafia: 1, blackmailer: 1 };
+      state.settings.blackmailerTeam = setting;
+      startAssign();
+      eq(state.players.find(p => p.role === 'blackmailer').team, setting);
+    }
+    for (let i = 0; i < 40; i++) {
+      state = freshState();
+      state.counts = { mafia: 1, blackmailer: 1 };
+      state.settings.blackmailerTeam = 'random';
+      startAssign();
+      teams.add(state.players.find(p => p.role === 'blackmailer').team);
+    }
+    eq([...teams].sort(), ['mafia', 'town']);
+  });
+
+  test('Blackmailer counts as Mafia in setup only when set to Mafia', () => {
+    state = freshState();
+    state.counts = { blackmailer: 1 };
+    state.settings.blackmailerTeam = 'random';
+    ok(setupStats().errors.join().includes('at least one Mafia'));
+    state.settings.blackmailerTeam = 'mafia';
+    eq(setupStats().errors, []);
+  });
+
+  test('Role card text shows the Blackmailer team and Doctor self-save', () => {
+    state = freshState();
+    ok(roleDesc('blackmailer', 'town').includes('Town'));
+    ok(roleDesc('blackmailer', 'mafia').includes('Mafia'));
+    ok(roleDesc('doctor').includes('may save yourself'));
+    ok(roleDesc('asstDoctor').includes('may save yourself'));
+    state.settings.doctorSelf = false;
+    ok(roleDesc('doctor').includes('cannot save yourself'));
+  });
+
+  test('Doctor self-save is on by default (including old saves without the setting)', () => {
+    eq(freshState().settings.doctorSelf, true);
+    setup(BASE);
+    delete state.settings.doctorSelf;
+    eq(def('doctor').disabled(P(S('doctor'))), '');
+  });
+
   /* ----- Assistants ----- */
   const ASST = [...BASE, 'asstDoctor', 'asstCop', 'villager'];
 
@@ -451,7 +532,7 @@
 
   test('Night steps include only roles in the game, in order', () => {
     setup(['godfather', 'roleblocker', 'blackmailer', 'serialKiller', 'cupid', 'doctor', 'bodyguard', 'cop', 'vigilante', 'hunter', 'villager', 'villager', 'villager', 'villager', 'villager']);
-    eq(state.night.steps, ['sleep', 'cupid', 'mafiaWake', 'roleblock', 'blackmail', 'kill', 'serialKiller', 'doctor', 'bodyguard', 'cop', 'vigilante', 'hunter', 'dawn']);
+    eq(state.night.steps, ['sleep', 'cupid', 'mafiaWake', 'roleblock', 'kill', 'blackmail', 'serialKiller', 'doctor', 'bodyguard', 'cop', 'vigilante', 'hunter', 'dawn']);
     setup(['mafia', 'villager', 'villager', 'villager']);
     eq(state.night.steps, ['sleep', 'mafiaWake', 'kill', 'dawn']);
   });

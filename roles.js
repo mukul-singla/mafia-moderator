@@ -14,16 +14,18 @@ const ROLES = {
     desc: 'Mafia. Each night, choose a player — their night ability fails tonight. You also help choose the Mafia kill.',
   },
   blackmailer: {
-    name: 'Blackmailer', team: 'mafia', icon: '🤐', max: 1,
-    desc: 'Mafia. Each night, choose a player — they cannot speak or vote the next day. You also help choose the Mafia kill.',
+    name: 'Blackmailer', team: 'mafia', icon: '🤐', max: 1, flexTeam: true,
+    desc: 'Each night, choose a player — they cannot speak or vote the next day.',
   },
   doctor: {
     name: 'Doctor', team: 'town', icon: '🩺', max: 1,
     desc: 'Each night, choose a player to save from death. You cannot save the same player two nights in a row.',
+    selfSaveNote: true,
   },
   asstDoctor: {
     name: 'Assistant Doctor', team: 'town', icon: '💉', max: 1, requires: 'doctor',
     desc: 'You have no power while the Doctor lives. If the Doctor dies, you become the new Doctor.',
+    selfSaveNote: true,
   },
   cop: {
     name: 'Cop', team: 'town', icon: '🕵️', max: 1,

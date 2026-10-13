@@ -121,6 +121,33 @@ def _(pg):
     check(pg.evaluate('state.counts.mafia') == 3, 'mafia should allow 3')
 
 
+@ui_test('Adding roles keeps the scroll position; moving to a new step scrolls to top')
+def _(pg):
+    pg.evaluate('window.scrollTo(0, 600)')
+    y = pg.evaluate('window.scrollY')
+    check(y > 0, 'page did not scroll')
+    for sel in ['[data-act=count][data-arg="hunter:1"]', '[data-act=count][data-arg="cupid:1"]', '[data-act=count][data-arg="cupid:-1"]']:
+        pg.evaluate(f"document.querySelector('{sel}').click()")
+        check(pg.evaluate('window.scrollY') == y, f'scroll jumped from {y} to {pg.evaluate("window.scrollY")}')
+    pg.evaluate("document.querySelector('[data-act=startAssign]').click()")
+    check(pg.evaluate('window.scrollY') == 0, 'new screen did not scroll to top')
+
+
+@ui_test('Blackmailer team selector works and shows on the role card')
+def _(pg):
+    pg.select_option('[data-setting=blackmailerTeam]', 'town')
+    check(pg.evaluate('state.settings.blackmailerTeam') == 'town', 'setting not saved')
+    set_setup(pg, 8, {'mafia': 1, 'blackmailer': 1})
+    pg.evaluate("state.settings.blackmailerTeam = 'town'; save(); render();")
+    pg.click('[data-act=startAssign]')
+    for i in range(8):
+        pg.fill('#nameInput', f'P{i + 1}')
+        pg.click('[data-act=reveal]')
+        if pg.evaluate('state.players[state.assignIndex].role') == 'blackmailer':
+            check('Town team' in pg.inner_text('.role-card'), 'card does not say Town team')
+        pg.click('[data-act=hideRole]')
+
+
 @ui_test('Settings toggles persist')
 def _(pg):
     pg.uncheck('[data-setting=revealOnDeath]')
@@ -312,6 +339,7 @@ def random_setup(rng):
             'night1Kill': rng.random() < 0.8,
             'doctorSelf': rng.random() < 0.5,
             'vigBullets': rng.randint(1, 3),
+            'blackmailerTeam': rng.choice(['random', 'mafia', 'town']),
         }
         yield n, counts, settings
 

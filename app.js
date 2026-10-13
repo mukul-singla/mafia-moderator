@@ -13,7 +13,7 @@ function freshState(prev) {
     screen: 'setup',
     numPlayers: prev ? prev.numPlayers : 8,
     counts: prev ? prev.counts : { godfather: 1, mafia: 1, doctor: 1, cop: 1 },
-    settings: prev ? prev.settings : { revealOnDeath: true, night1Kill: true, doctorSelf: true, vigBullets: 1 },
+    settings: prev ? prev.settings : { revealOnDeath: true, night1Kill: true, doctorSelf: true, vigBullets: 1, blackmailerTeam: 'random' },
     players: [],
     assignIndex: 0,
     revealed: false,
@@ -44,11 +44,25 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const P = seat => state.players.find(p => p.seat === seat);
 const nm = seat => `<b>${esc(P(seat).name)}</b>`;
 const roleOf = p => ROLES[p.role];
-const isMafia = p => roleOf(p).team === 'mafia';
+const teamOf = p => p.team || roleOf(p).team;
+const isMafia = p => teamOf(p) === 'mafia';
+const blackmailerTeam = () => state.settings.blackmailerTeam || 'random';
+
+function roleDesc(key, team) {
+  const role = ROLES[key];
+  let d = role.desc;
+  if (role.selfSaveNote) d += state.settings.doctorSelf === false ? ' You cannot save yourself.' : ' You may save yourself.';
+  if (role.flexTeam) {
+    if (team === 'mafia') d += ' You are on the <b>Mafia</b> team: you also wake with the Mafia and help choose the kill.';
+    else if (team === 'town') d += ' You are on the <b>Town</b> team: you win with the Town.';
+    else d += ' Can be on the Mafia or the Town team (see Rules).';
+  }
+  return d;
+}
 const alivePlayers = () => state.players.filter(p => p.alive);
 const inGame = r => state.players.some(p => p.role === r);
 const firstAlive = r => state.players.find(p => p.role === r && p.alive) || null;
-const roleTag = p => `${roleOf(p).icon} ${roleOf(p).name}`;
+const roleTag = p => `${roleOf(p).icon} ${roleOf(p).name}${roleOf(p).flexTeam && p.team ? ` (${TEAM_LABEL[p.team]})` : ''}`;
 
 function holder(role) {
   if (role === 'doctor') return firstAlive('doctor') || firstAlive('asstDoctor');
@@ -72,8 +86,9 @@ function setupStats() {
   let special = 0, mafia = 0, neutral = 0;
   for (const [r, n] of Object.entries(c)) {
     special += n;
-    if (ROLES[r].team === 'mafia') mafia += n;
-    if (ROLES[r].team === 'neutral') neutral += n;
+    const team = ROLES[r].flexTeam ? (blackmailerTeam() === 'mafia' ? 'mafia' : 'town') : ROLES[r].team;
+    if (team === 'mafia') mafia += n;
+    if (team === 'neutral') neutral += n;
   }
   const villagers = state.numPlayers - special;
   const town = state.numPlayers - mafia - neutral;
@@ -89,6 +104,7 @@ function setupStats() {
   const ideal = Math.max(1, Math.round(state.numPlayers / 4));
   if (!errors.length && mafia > ideal) warnings.push(`Mafia-heavy. About ${ideal} Mafia is typical for ${state.numPlayers} players.`);
   if (!errors.length && mafia < ideal) warnings.push(`Town-heavy. About ${ideal} Mafia is typical for ${state.numPlayers} players.`);
+  if (c.blackmailer && blackmailerTeam() === 'random') warnings.push('The Blackmailer\'s team is picked at random — counted as Town above, but may join the Mafia.');
   return { villagers, mafia, neutral, town, errors, warnings };
 }
 
@@ -145,6 +161,11 @@ function startAssign() {
   for (const r of ROLE_ORDER) for (let i = 0; i < (state.counts[r] || 0); i++) roles.push(r);
   while (roles.length < state.numPlayers) roles.push('villager');
   state.players = shuffle(roles).map((role, i) => ({ seat: i + 1, name: `Player ${i + 1}`, role, alive: true, death: null }));
+  for (const p of state.players) {
+    if (!ROLES[p.role].flexTeam) continue;
+    const pick = blackmailerTeam();
+    p.team = pick === 'random' ? shuffle(['mafia', 'town'])[0] : pick;
+  }
   state.assignIndex = 0;
   state.revealed = false;
   state.screen = 'assign';
@@ -162,8 +183,8 @@ function buildSteps(round) {
   if (round === 1 && inGame('cupid')) s.push('cupid');
   s.push('mafiaWake');
   if (inGame('roleblocker')) s.push('roleblock');
-  if (inGame('blackmailer')) s.push('blackmail');
   s.push('kill');
+  if (inGame('blackmailer')) s.push('blackmail');
   if (inGame('serialKiller')) s.push('serialKiller');
   if (inGame('doctor') || inGame('asstDoctor')) s.push('doctor');
   if (inGame('bodyguard')) s.push('bodyguard');
@@ -230,7 +251,9 @@ function stepDef(key) {
       d.icon = '🤐'; d.title = 'Blackmailer'; d.pick = 'one';
       const h = holder('blackmailer');
       withHolder(h, 'Blackmailer');
-      d.say = ['Blackmailer, point at the player you want to silence tomorrow.'];
+      if (h) d.notes.push(`Team: <b>${TEAM_LABEL[teamOf(h)]}</b>`);
+      d.say = ['Blackmailer, open your eyes. Point at the player you want to silence tomorrow.'];
+      d.after = ['Blackmailer, close your eyes.'];
       d.disabled = p => (h && p.seat === h.seat ? 'Self' : '');
       break;
     }
@@ -271,7 +294,7 @@ function stepDef(key) {
       d.after = ['Doctor, close your eyes.'];
       d.disabled = p => {
         if (!h) return '';
-        if (p.seat === h.seat && !state.settings.doctorSelf) return 'No self-save';
+        if (p.seat === h.seat && state.settings.doctorSelf === false) return 'No self-save';
         const l = state.last.doctor;
         if (l && l.by === h.seat && l.target === p.seat && l.round === r - 1) return 'Saved last night';
         return '';
@@ -597,6 +620,7 @@ root.addEventListener('click', e => {
   if (!el || el.disabled) return;
   const act = el.dataset.act;
   const snapshot = JSON.stringify(state);
+  const screenBefore = screenKey();
   const result = actions[act](el.dataset.arg);
   if (result !== false && !UI_ONLY.has(act) && act !== 'undo') {
     undoStack.push(snapshot);
@@ -604,14 +628,19 @@ root.addEventListener('click', e => {
   }
   save();
   render();
-  if (!UI_ONLY.has(act)) window.scrollTo({ top: 0 });
+  if (screenKey() !== screenBefore) window.scrollTo({ top: 0 });
 });
+
+function screenKey() {
+  const s = state;
+  return [ui.tab, s.screen, s.assignIndex, s.revealed, s.phase, s.round, s.night && s.night.step, s.day && s.day.lynchDone, s.winner].join('|');
+}
 
 root.addEventListener('change', e => {
   const el = e.target;
   if (!el.dataset.setting) return;
   const key = el.dataset.setting;
-  state.settings[key] = el.type === 'checkbox' ? el.checked : Number(el.value);
+  state.settings[key] = el.type === 'checkbox' ? el.checked : el.dataset.kind === 'text' ? el.value : Number(el.value);
   save();
   render();
 });
@@ -625,9 +654,11 @@ root.addEventListener('keydown', e => {
 /* ---------- views ---------- */
 
 function render() {
+  const y = window.scrollY;
   if (state.screen === 'setup') root.innerHTML = viewSetup();
   else if (state.screen === 'assign') root.innerHTML = viewAssign();
   else root.innerHTML = viewGame();
+  window.scrollTo(0, y);
   const input = document.getElementById('nameInput');
   if (input) input.focus();
 }
@@ -641,11 +672,13 @@ function viewSetup() {
   const rows = ROLE_ORDER.map(r => {
     const role = ROLES[r];
     const n = state.counts[r] || 0;
+    const flex = role.flexTeam ? blackmailerTeam() : null;
+    const badges = flex === 'random' ? `${teamBadge('mafia')} ${teamBadge('town')}` : teamBadge(flex || role.team);
     return `
       <div class="role-row">
         <div class="role-info">
-          <div class="role-name">${role.icon} ${role.name} ${teamBadge(role.team)}</div>
-          <div class="role-desc">${role.desc}</div>
+          <div class="role-name">${role.icon} ${role.name} ${badges}</div>
+          <div class="role-desc">${roleDesc(r)}</div>
         </div>
         <div class="stepper">
           <button data-act="count" data-arg="${r}:-1" ${n ? '' : 'disabled'}>−</button>
@@ -693,7 +726,10 @@ function viewSetup() {
       <h2>Rules</h2>
       <label class="toggle"><input type="checkbox" data-setting="revealOnDeath" ${st.revealOnDeath ? 'checked' : ''}> Reveal role when a player dies</label>
       <label class="toggle"><input type="checkbox" data-setting="night1Kill" ${st.night1Kill ? 'checked' : ''}> Mafia may kill on Night 1</label>
-      <label class="toggle"><input type="checkbox" data-setting="doctorSelf" ${st.doctorSelf ? 'checked' : ''}> Doctor may save themselves</label>
+      <label class="toggle"><input type="checkbox" data-setting="doctorSelf" ${st.doctorSelf !== false ? 'checked' : ''}> Doctor may save themselves</label>
+      <label class="toggle">Blackmailer team
+        <select data-setting="blackmailerTeam" data-kind="text">${[['random', 'Random'], ['mafia', 'Mafia'], ['town', 'Town']].map(([v, l]) => `<option value="${v}" ${blackmailerTeam() === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      </label>
       <label class="toggle">Vigilante bullets
         <select data-setting="vigBullets">${[1, 2, 3].map(n => `<option ${st.vigBullets === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
       </label>
@@ -729,11 +765,11 @@ function viewAssign() {
   return `
     <header class="top"><h1>🎭 ${esc(p.name)}</h1></header>
     ${progress}
-    <section class="card center role-card ${role.team}">
+    <section class="card center role-card ${teamOf(p)}">
       <div class="role-icon">${role.icon}</div>
       <div class="role-title">${role.name}</div>
-      ${teamBadge(role.team)}
-      <p class="role-desc big">${role.desc}</p>
+      ${teamBadge(teamOf(p))}
+      <p class="role-desc big">${roleDesc(p.role, p.team)}</p>
     </section>
     <button class="primary block" data-act="hideRole">${last ? '✅ Done — hand back to the moderator' : '🙈 Hide &amp; pass to next seat'}</button>
   `;
