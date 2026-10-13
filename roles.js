@@ -11,11 +11,11 @@ const ROLES = {
   },
   roleblocker: {
     name: 'Role Blocker', team: 'mafia', icon: '🚫', max: 1,
-    desc: 'Mafia. Each night, choose a player — their night ability fails tonight. You also help choose the Mafia kill.',
+    desc: 'Mafia. Each night, choose a player — their night ability fails tonight. You cannot block the same player two nights in a row. You also help choose the Mafia kill.',
   },
   blackmailer: {
     name: 'Blackmailer', team: 'mafia', icon: '🤐', max: 1, flexTeam: true,
-    desc: 'Each night, choose a player — they cannot speak or vote the next day.',
+    desc: 'Each night, choose a player — they cannot speak or vote the next day. You cannot silence the same player two nights in a row.',
   },
   doctor: {
     name: 'Doctor', team: 'town', icon: '🩺', max: 1,

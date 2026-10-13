@@ -22,7 +22,7 @@ function freshState(prev) {
     night: null,
     day: null,
     lovers: null,
-    last: { doctor: null, bodyguard: null },
+    last: { doctor: null, bodyguard: null, roleblocker: null, blackmailer: null },
     vigBullets: 1,
     hunterTarget: null,
     log: [],
@@ -242,7 +242,13 @@ function stepDef(key) {
       const h = holder('roleblocker');
       withHolder(h, 'Role Blocker');
       d.say = ['Role Blocker, point at the player whose ability you want to block tonight.'];
-      d.disabled = p => (h && p.seat === h.seat ? 'Self' : '');
+      d.disabled = p => {
+        if (!h) return '';
+        if (p.seat === h.seat) return 'Self';
+        const l = state.last.roleblocker;
+        if (l && l.by === h.seat && l.target === p.seat && l.round === r - 1) return 'Blocked last night';
+        return '';
+      };
       break;
     }
 
@@ -253,7 +259,13 @@ function stepDef(key) {
       if (h) d.notes.push(`Team: <b>${TEAM_LABEL[teamOf(h)]}</b>`);
       d.say = ['Blackmailer, open your eyes. Point at the player you want to silence tomorrow.'];
       d.after = ['Blackmailer, close your eyes.'];
-      d.disabled = p => (h && p.seat === h.seat ? 'Self' : '');
+      d.disabled = p => {
+        if (!h) return '';
+        if (p.seat === h.seat) return 'Self';
+        const l = state.last.blackmailer;
+        if (l && l.by === h.seat && l.target === p.seat && l.round === r - 1) return 'Silenced last night';
+        return '';
+      };
       break;
     }
 
@@ -389,9 +401,12 @@ function resolveNight() {
     state.lovers = a.cupid.slice();
     ev.push(`Cupid made ${nm(a.cupid[0])} and ${nm(a.cupid[1])} lovers.`);
   }
+  const rb = holder('roleblocker');
+  if (rb) state.last.roleblocker = { by: rb.seat, target: blocked, round: r };
   if (blocked) ev.push(`Role Blocker blocked ${nm(blocked)} (${roleTag(P(blocked))}).`);
 
   const bm = holder('blackmailer');
+  if (bm) state.last.blackmailer = { by: bm.seat, target: a.blackmail || 0, round: r };
   if (bm && a.blackmail) {
     if (works(bm)) { state.day.silenced = a.blackmail; ev.push(`Blackmailer silenced ${nm(a.blackmail)}.`); }
     else ev.push('Blackmailer was blocked — no one is silenced.');
@@ -796,16 +811,16 @@ function viewGame() {
   `;
 }
 
-function picker({ act, selected = [], disabled = () => '', markMafia = false }) {
-  return `<div class="grid">${alivePlayers().map(p => {
-    const reason = disabled(p);
+function picker({ act, selected = [], disabled = () => '', markMafia = false, showDead = false }) {
+  return `<div class="grid">${(showDead ? state.players : alivePlayers()).map(p => {
+    const reason = p.alive ? disabled(p) : '☠️ Dead';
     const sel = selected.includes(p.seat);
     const tags = [];
     if (ui.showRoles) tags.push(roleTag(p));
     else if (markMafia && isMafia(p)) tags.push('🔪 Mafia');
     if (state.lovers && state.lovers.includes(p.seat) && ui.showRoles) tags.push('💘');
     return `
-      <button class="pbtn ${sel ? 'sel' : ''}" data-act="${act}" data-arg="${p.seat}" ${reason ? 'disabled' : ''}>
+      <button class="pbtn ${sel ? 'sel' : ''} ${p.alive ? '' : 'dead'}" data-act="${act}" data-arg="${p.seat}" ${reason ? 'disabled' : ''}>
         <span class="seat">${p.seat}</span>
         <span class="pname">${esc(p.name)}</span>
         ${tags.length ? `<span class="tag">${tags.join(' ')}</span>` : ''}
@@ -855,13 +870,13 @@ function viewNight() {
       ${holderLine}
       ${d.notes.map(x => `<div class="alert info">${x}</div>`).join('')}
       ${d.warn.map(x => `<div class="alert warn">${x}</div>`).join('')}
-      ${active ? picker({ act: 'nightPick', selected, disabled: d.disabled, markMafia: d.markMafia }) : ''}
+      ${active ? picker({ act: 'nightPick', selected, disabled: d.disabled, markMafia: d.markMafia, showDead: true }) : ''}
       ${active ? `<button class="ghost block ${val === 0 ? 'sel' : ''}" data-act="nightNone">${d.pick === 'two' ? 'No lovers' : 'No action'}</button>` : ''}
       ${d.result || ''}
       ${summary}
       ${sayBlock(d.after, 'after')}
     </section>
-    <div class="nav">
+    <div class="nav sticky">
       <button class="ghost" data-act="nightBack" ${n.step === 0 ? 'disabled' : ''}>← Back</button>
       <button class="primary" data-act="nightNext" ${canNext ? '' : 'disabled'}>${key === 'dawn' ? '☀️ Start day' : 'Next →'}</button>
     </div>
