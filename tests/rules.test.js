@@ -401,6 +401,46 @@
     eq(def('blackmail').disabled(P(S('blackmailer'))), 'Self');
   });
 
+  test('Role Blocker cannot block the same player two nights in a row', () => {
+    setup([...BASE, 'roleblocker']);
+    const c = S('cop'), d = S('doctor');
+    night({ roleblock: c }); next();
+    eq(def('roleblock').disabled(P(c)), 'Blocked last night');
+    eq(def('roleblock').disabled(P(d)), '');
+    night({ roleblock: d }); next();
+    eq(def('roleblock').disabled(P(c)), '');
+  });
+
+  test('Blackmailer cannot silence the same player two nights in a row', () => {
+    setup([...BASE, 'blackmailer']);
+    const v = S('villager'), v2 = S('villager', 1);
+    night({ blackmail: v }); next();
+    eq(def('blackmail').disabled(P(v)), 'Silenced last night');
+    eq(def('blackmail').disabled(P(v2)), '');
+    night({ blackmail: 0 }); next();
+    eq(def('blackmail').disabled(P(v)), '');
+  });
+
+  test('Role-blocked Blackmailer still cannot repeat the target', () => {
+    setup([...BASE, 'blackmailer', 'roleblocker']);
+    const v = S('villager');
+    night({ roleblock: S('blackmailer'), blackmail: v }); next();
+    eq(def('blackmail').disabled(P(v)), 'Silenced last night');
+  });
+
+  test('Night picker shows dead players as disabled; day picker hides them', () => {
+    setup(BASE);
+    const v = S('villager');
+    night({ kill: v }); next();
+    const box = document.createElement('div');
+    box.innerHTML = picker({ act: 'nightPick', showDead: true });
+    const btn = box.querySelector(`[data-arg="${v}"]`);
+    ok(btn && btn.disabled && btn.textContent.includes('Dead'), 'dead player should be shown disabled');
+    eq(box.querySelectorAll('.pbtn').length, BASE.length);
+    box.innerHTML = picker({ act: 'lynchSel' });
+    ok(!box.querySelector(`[data-arg="${v}"]`), 'day picker should hide dead players');
+  });
+
   test('Blocked player gets a warning on their step', () => {
     setup([...BASE, 'roleblocker']);
     state.night.actions = { roleblock: S('doctor') };
